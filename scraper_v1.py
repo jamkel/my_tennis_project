@@ -1,69 +1,65 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
+# data_scraper/scraper.py
+
+import requests
+from bs4 import BeautifulSoup
 import pandas as pd
 import time
 
-BASE_URL = "https://www.atptour.com/en/scores/results-archive?year=2024"
+BASE_URL = "https://www.tennisexplorer.com/results/?year=2024"
 
-def get_driver():
-    options = Options()
-    options.add_argument("--headless")  # Don't open a browser window
-    options.add_argument("--disable-gpu")
-    driver = webdriver.Chrome(options=options)
-    return driver
+headers = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+}
 
-def get_tournament_links(driver, year=2024):
-    url = f"https://www.atptour.com/en/scores/results-archive?year={year}"
-    driver.get(url)
-    print("[DEBUG] Page loaded")
-    print(driver.page_source[:500])
-    time.sleep(2)
-
-    rows = driver.find_elements(By.CSS_SELECTOR, ".results-archive-table tbody tr")
-    links = [row.find_element(By.TAG_NAME, "a").get_attribute("href") for row in rows]
-    return links
-
-def scrape_tournament(driver, url):
-    driver.get(url)
-    time.sleep(2)
-
-    try:
-        tournament_name = driver.find_element(By.CLASS_NAME, "tourney-title").text.strip()
-    except:
-        tournament_name = "Unknown Tournament"
-
-    rows = driver.find_elements(By.CSS_SELECTOR, "table.day-table tbody tr")
-    print(f"[DEBUG] {tournament_name}: Found {len(rows)} rows")
-
+def scrape_tennisexplorer_results(pages=1):
     matches = []
-    for row in rows:
-        cols = row.find_elements(By.TAG_NAME, "td")
-        if len(cols) < 5:
+
+    for page in range(1, pages + 1):
+        url = f"{BASE_URL}&page={page}"
+        print(f"[DEBUG] Scraping {url}")
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        table = soup.find("table", class_="result")
+        if not table:
+            print("[DEBUG] No table found.")
             continue
-        matches.append({
-            "tournament": tournament_name,
-            "round": cols[0].text.strip(),
-            "winner": cols[1].text.strip(),
-            "loser": cols[2].text.strip(),
-            "score": cols[3].text.strip()
-        })
-    return matches
 
-def scrape_all(year=2024, limit=3):
-    driver = get_driver()
-    tournament_links = get_tournament_links(driver, year)
-    all_matches = []
+        current_date = None
+        rows = table.find_all("tr")
 
-    for link in tournament_links[:limit]:
-        print(f"[DEBUG] Scraping {link}")
-        matches = scrape_tournament(driver, link)
-        all_matches.extend(matches)
+        for row in rows:
+            # Date row
+            if "head" in row.get("class", []):
+                date_cell = row.find("td")
+                if date_cell:
+                    current_date = date_cell.text.strip()
 
-    driver.quit()
-    return pd.DataFrame(all_matches)
+            # Match row
+            elif "result" in row.get("class", []):
+                cols = row.find_all("td")
+                if len(cols) >= 5:
+                    tournament = cols[0].text.strip()
+                    surface = cols[1].text.strip()
+                    player1 = cols[2].text.strip()
+                    player2 = cols[3].text.strip()
+                    score = cols[4].text.strip()
+
+                    matches.append({
+                        "date": current_date,
+                        "tournament": tournament,
+                        "surface": surface,
+                        "player1": player1,
+                        "player2": player2,
+                        "score": score
+                    })
+
+        time.sleep(1)  # be polite
+
+    return pd.DataFrame(matches)
 
 if __name__ == "__main__":
-    df = scrape_all()
+    df = scrape_tennisexplorer_results(pages=3)  # try 3 pages to start
     print(df.head())
-    df.to_csv("data/matches.csv", index=False)
+
+    df.to_csv("data/tennisexplorer_matches.csv", index=False)
