@@ -4,7 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
-BASE_URL = "https://www.atptour.com"
+BASE_URL = "https://www.tennis-data.co.uk/2023/atp_2023.xls"
 
 def get_tournaments_for_year(year=2024):
     url = f"{BASE_URL}/en/scores/results-archive?year={year}"
