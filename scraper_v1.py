@@ -17,10 +17,22 @@ def get_tournaments_for_year(year=2024):
 
 def scrape_tournament_results(tournament_url):
     response = requests.get(tournament_url)
+
+    print(f"[DEBUG] Status code: {response.status_code}")
+    print(f"[DEBUG] First 500 characters of HTML from {tournament_url}:\n")
+    print(response.text[:500])  # optional: soup.prettify()[:500]
+
     soup = BeautifulSoup(response.text, "html.parser")
 
-    tournament_name = soup.find("h1", class_="tourney-title").get_text(strip=True)
+    tournament_name = soup.find("h1", class_="tourney-title")
+    if tournament_name:
+        tournament_name = tournament_name.get_text(strip=True)
+    else:
+        print(f"[DEBUG] Tournament title not found at {tournament_url}")
+        tournament_name = "Unknown Tournament"
+
     rows = soup.select("table.day-table tbody tr")
+    print(f"[DEBUG] Found {len(rows)} rows in table")
 
     matches = []
     for row in rows:
