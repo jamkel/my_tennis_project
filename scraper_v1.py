@@ -45,4 +45,19 @@ def scrape_tennisexplorer_results(year=2024, pages=3):
                 if len(cols) >= 5:
                     matches.append({
                         "date": current_date,
-                        "tournament": cols[0].
+                        "tournament": cols[0].text.strip(),
+                        "surface": cols[1].text.strip(),
+                        "player1": cols[2].text.strip(),
+                        "player2": cols[3].text.strip(),
+                        "score": cols[4].text.strip()
+                    })
+
+        time.sleep(1)
+
+    return pd.DataFrame(matches)
+
+if __name__ == "__main__":
+    df = scrape_tennisexplorer_results(year=2024, pages=3)
+    print(df.head())
+
+    df.to_csv("data/tennisexplorer_matches.csv", index=False)
