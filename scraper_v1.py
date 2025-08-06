@@ -24,6 +24,9 @@ def scrape_tennisexplorer_with_selenium(pages=3):
         url = base_url.format(page)
         print(f"[DEBUG] Visiting {url}")
         driver.get(url)
+        html = driver.page_source
+        print("[DEBUG] First 500 characters of HTML:\n")
+        print(html[:500])
         time.sleep(3)
 
         rows = driver.find_elements(By.CSS_SELECTOR, "table.result tr")
