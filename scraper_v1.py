@@ -16,6 +16,8 @@ def get_driver():
 def get_tournament_links(driver, year=2024):
     url = f"https://www.atptour.com/en/scores/results-archive?year={year}"
     driver.get(url)
+    print("[DEBUG] Page loaded")
+    print(driver.page_source[:500])
     time.sleep(2)
 
     rows = driver.find_elements(By.CSS_SELECTOR, ".results-archive-table tbody tr")
