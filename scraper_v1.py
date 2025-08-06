@@ -1,72 +1,67 @@
-# data_scraper/scraper.py
-
-import requests
-from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 import pandas as pd
+import time
 
-BASE_URL = "https://www.tennis-data.co.uk/2023/atp_2023.xls"
+BASE_URL = "https://www.atptour.com/en/scores/results-archive?year=2024"
 
-def get_tournaments_for_year(year=2024):
-    url = "https://www.tennis-data.co.uk/2023/atp_2023.xls"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
+def get_driver():
+    options = Options()
+    options.add_argument("--headless")  # Don't open a browser window
+    options.add_argument("--disable-gpu")
+    driver = webdriver.Chrome(options=options)
+    return driver
 
-    tournaments = soup.select(".results-archive-table tbody tr")
-    links = [BASE_URL + row.find("a")["href"] for row in tournaments if row.find("a")]
+def get_tournament_links(driver, year=2024):
+    url = f"https://www.atptour.com/en/scores/results-archive?year={year}"
+    driver.get(url)
+    time.sleep(2)
+
+    rows = driver.find_elements(By.CSS_SELECTOR, ".results-archive-table tbody tr")
+    links = [row.find_element(By.TAG_NAME, "a").get_attribute("href") for row in rows]
     return links
 
-def scrape_tournament_results(tournament_url):
-    response = requests.get(tournament_url)
+def scrape_tournament(driver, url):
+    driver.get(url)
+    time.sleep(2)
 
-    print(f"[DEBUG] Status code: {response.status_code}")
-    print(f"[DEBUG] First 500 characters of HTML from {tournament_url}:\n")
-    print(response.text[:500])  # optional: soup.prettify()[:500]
-
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    tournament_name = soup.find("h1", class_="tourney-title")
-    if tournament_name:
-        tournament_name = tournament_name.get_text(strip=True)
-    else:
-        print(f"[DEBUG] Tournament title not found at {tournament_url}")
+    try:
+        tournament_name = driver.find_element(By.CLASS_NAME, "tourney-title").text.strip()
+    except:
         tournament_name = "Unknown Tournament"
 
-    rows = soup.select("table.day-table tbody tr")
-    print(f"[DEBUG] Found {len(rows)} rows in table")
+    rows = driver.find_elements(By.CSS_SELECTOR, "table.day-table tbody tr")
+    print(f"[DEBUG] {tournament_name}: Found {len(rows)} rows")
 
     matches = []
     for row in rows:
-        cols = row.find_all("td")
+        cols = row.find_elements(By.TAG_NAME, "td")
         if len(cols) < 5:
             continue
-        match = {
+        matches.append({
             "tournament": tournament_name,
             "round": cols[0].text.strip(),
             "winner": cols[1].text.strip(),
             "loser": cols[2].text.strip(),
-            "score": cols[3].text.strip(),
-        }
-        matches.append(match)
-
+            "score": cols[3].text.strip()
+        })
     return matches
 
-def scrape_all_tournaments(year=2024, limit=3):
-    tournaments = get_tournaments_for_year(year)
+def scrape_all(year=2024, limit=3):
+    driver = get_driver()
+    tournament_links = get_tournament_links(driver, year)
     all_matches = []
 
-    for i, url in enumerate(tournaments[:limit]):
-        print(f"Scraping {url}...")
-        try:
-            matches = scrape_tournament_results(url)
-            all_matches.extend(matches)
-        except Exception as e:
-            print(f"Failed to scrape {url}: {e}")
+    for link in tournament_links[:limit]:
+        print(f"[DEBUG] Scraping {link}")
+        matches = scrape_tournament(driver, link)
+        all_matches.extend(matches)
 
+    driver.quit()
     return pd.DataFrame(all_matches)
 
 if __name__ == "__main__":
-    df = scrape_all_tournaments(year=2024)
+    df = scrape_all()
     print(df.head())
-
-    # Optional: save to CSV (for now)
     df.to_csv("data/matches.csv", index=False)
